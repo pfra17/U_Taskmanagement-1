@@ -23,11 +23,11 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING
   9 .debug_frame  000018d8  00000000  00000000  0001cb50  2**2
                   CONTENTS, READONLY, DEBUGGING
- 10 .debug_str    0000577d  00000000  00000000  0001e428  2**0
+ 10 .debug_str    0000575f  00000000  00000000  0001e428  2**0
                   CONTENTS, READONLY, DEBUGGING
- 11 .debug_loc    00008b7a  00000000  00000000  00023ba5  2**0
+ 11 .debug_loc    00008b7a  00000000  00000000  00023b87  2**0
                   CONTENTS, READONLY, DEBUGGING
- 12 .debug_ranges 00000788  00000000  00000000  0002c71f  2**0
+ 12 .debug_ranges 00000788  00000000  00000000  0002c701  2**0
                   CONTENTS, READONLY, DEBUGGING
 
 Disassembly of section .text:
@@ -203,6 +203,12 @@ Disassembly of section .text:
      26a:	0c bf       	out	0x3c, r16	; 60
 
 0000026c <init_mem>:
+// !!! Never call this function, it is part of .init-Code
+void __attribute__ ((naked, section(".init3"))) init_mem (void);
+void init_mem (void)
+{
+   //  Use inline assembler so it works even with optimization turned off
+   __asm volatile (
      26c:	eb e0       	ldi	r30, 0x0B	; 11
      26e:	f5 e3       	ldi	r31, 0x35	; 53
      270:	8a ea       	ldi	r24, 0xAA	; 170
@@ -247,126 +253,216 @@ Disassembly of section .text:
      2ae:	0c 94 00 00 	jmp	0	; 0x0 <__vectors>
 
 000002b2 <initButtons>:
+ #define BUTTON_PRESS_LONG			500
+
+ 
+
+ void initButtons(void) {
+	PORTF.DIRCLR = PIN4_bm; //SW1
      2b2:	e0 ea       	ldi	r30, 0xA0	; 160
      2b4:	f6 e0       	ldi	r31, 0x06	; 6
      2b6:	80 e1       	ldi	r24, 0x10	; 16
      2b8:	82 83       	std	Z+2, r24	; 0x02
+	PORTF.DIRCLR = PIN5_bm; //SW2
      2ba:	80 e2       	ldi	r24, 0x20	; 32
      2bc:	82 83       	std	Z+2, r24	; 0x02
+	PORTF.DIRCLR = PIN6_bm; //SW3
      2be:	80 e4       	ldi	r24, 0x40	; 64
      2c0:	82 83       	std	Z+2, r24	; 0x02
+	PORTF.DIRCLR = PIN7_bm; //SW4
      2c2:	80 e8       	ldi	r24, 0x80	; 128
      2c4:	82 83       	std	Z+2, r24	; 0x02
      2c6:	08 95       	ret
 
 000002c8 <updateButtons>:
+ void updateButtons(void) {
+	static uint16_t b1Count = 0;
+	static uint16_t b2Count = 0;
+	static uint16_t b3Count = 0;
+	static uint16_t b4Count = 0;
+	if(Button1_Value == 0) {
      2c8:	20 91 a8 06 	lds	r18, 0x06A8	; 0x8006a8 <__TEXT_REGION_LENGTH__+0x7006a8>
      2cc:	80 91 a6 20 	lds	r24, 0x20A6	; 0x8020a6 <b1Count.3829>
      2d0:	90 91 a7 20 	lds	r25, 0x20A7	; 0x8020a7 <b1Count.3829+0x1>
      2d4:	24 fd       	sbrc	r18, 4
      2d6:	0a c0       	rjmp	.+20     	; 0x2ec <updateButtons+0x24>
+		if(b1Count < 60000) {
      2d8:	80 36       	cpi	r24, 0x60	; 96
      2da:	2a ee       	ldi	r18, 0xEA	; 234
      2dc:	92 07       	cpc	r25, r18
      2de:	b8 f4       	brcc	.+46     	; 0x30e <updateButtons+0x46>
+			b1Count++;
      2e0:	01 96       	adiw	r24, 0x01	; 1
      2e2:	80 93 a6 20 	sts	0x20A6, r24	; 0x8020a6 <b1Count.3829>
      2e6:	90 93 a7 20 	sts	0x20A7, r25	; 0x8020a7 <b1Count.3829+0x1>
      2ea:	11 c0       	rjmp	.+34     	; 0x30e <updateButtons+0x46>
+		}
+	} else {
+		if(b1Count > (BUTTON_PRESS_SHORT / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      2ec:	8b 30       	cpi	r24, 0x0B	; 11
      2ee:	91 05       	cpc	r25, r1
      2f0:	38 f0       	brcs	.+14     	; 0x300 <updateButtons+0x38>
+			if(b1Count > (BUTTON_PRESS_LONG / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      2f2:	c3 97       	sbiw	r24, 0x33	; 51
      2f4:	18 f0       	brcs	.+6      	; 0x2fc <updateButtons+0x34>
+				//Button was pressed Long
+				b1Status = LONG_PRESSED;
      2f6:	10 92 f0 34 	sts	0x34F0, r1	; 0x8034f0 <b1Status>
      2fa:	05 c0       	rjmp	.+10     	; 0x306 <updateButtons+0x3e>
+			} else {
+				//Button was pressed Short	
+				b1Status = SHORT_PRESSED;
      2fc:	81 e0       	ldi	r24, 0x01	; 1
      2fe:	01 c0       	rjmp	.+2      	; 0x302 <updateButtons+0x3a>
+			}
+		} else {
+			b1Status = NOT_PRESSED;
      300:	82 e0       	ldi	r24, 0x02	; 2
      302:	80 93 f0 34 	sts	0x34F0, r24	; 0x8034f0 <b1Status>
+		}
+		b1Count = 0;
      306:	10 92 a6 20 	sts	0x20A6, r1	; 0x8020a6 <b1Count.3829>
      30a:	10 92 a7 20 	sts	0x20A7, r1	; 0x8020a7 <b1Count.3829+0x1>
+	}
+	if(Button2_Value == 0) {
      30e:	20 91 a8 06 	lds	r18, 0x06A8	; 0x8006a8 <__TEXT_REGION_LENGTH__+0x7006a8>
      312:	80 91 a4 20 	lds	r24, 0x20A4	; 0x8020a4 <b2Count.3830>
      316:	90 91 a5 20 	lds	r25, 0x20A5	; 0x8020a5 <b2Count.3830+0x1>
      31a:	25 fd       	sbrc	r18, 5
      31c:	0a c0       	rjmp	.+20     	; 0x332 <updateButtons+0x6a>
+		if(b2Count < 60000) {
      31e:	80 36       	cpi	r24, 0x60	; 96
      320:	2a ee       	ldi	r18, 0xEA	; 234
      322:	92 07       	cpc	r25, r18
      324:	b8 f4       	brcc	.+46     	; 0x354 <updateButtons+0x8c>
+			b2Count++;
      326:	01 96       	adiw	r24, 0x01	; 1
      328:	80 93 a4 20 	sts	0x20A4, r24	; 0x8020a4 <b2Count.3830>
      32c:	90 93 a5 20 	sts	0x20A5, r25	; 0x8020a5 <b2Count.3830+0x1>
      330:	11 c0       	rjmp	.+34     	; 0x354 <updateButtons+0x8c>
+		}
+	} else {
+		if(b2Count > (BUTTON_PRESS_SHORT / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      332:	8b 30       	cpi	r24, 0x0B	; 11
      334:	91 05       	cpc	r25, r1
      336:	38 f0       	brcs	.+14     	; 0x346 <updateButtons+0x7e>
+			if(b2Count > (BUTTON_PRESS_LONG / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      338:	c3 97       	sbiw	r24, 0x33	; 51
      33a:	18 f0       	brcs	.+6      	; 0x342 <updateButtons+0x7a>
+				//Button was pressed Long
+				b2Status = LONG_PRESSED;
      33c:	10 92 f1 34 	sts	0x34F1, r1	; 0x8034f1 <b2Status>
      340:	05 c0       	rjmp	.+10     	; 0x34c <updateButtons+0x84>
+				} else {
+				//Button was pressed Short
+				b2Status = SHORT_PRESSED;
      342:	81 e0       	ldi	r24, 0x01	; 1
      344:	01 c0       	rjmp	.+2      	; 0x348 <updateButtons+0x80>
+			}
+		} else {
+			b2Status = NOT_PRESSED;			
      346:	82 e0       	ldi	r24, 0x02	; 2
      348:	80 93 f1 34 	sts	0x34F1, r24	; 0x8034f1 <b2Status>
+		}
+		b2Count = 0;
      34c:	10 92 a4 20 	sts	0x20A4, r1	; 0x8020a4 <b2Count.3830>
      350:	10 92 a5 20 	sts	0x20A5, r1	; 0x8020a5 <b2Count.3830+0x1>
+	}
+	if(Button3_Value == 0) {
      354:	20 91 a8 06 	lds	r18, 0x06A8	; 0x8006a8 <__TEXT_REGION_LENGTH__+0x7006a8>
      358:	80 91 a2 20 	lds	r24, 0x20A2	; 0x8020a2 <b3Count.3831>
      35c:	90 91 a3 20 	lds	r25, 0x20A3	; 0x8020a3 <b3Count.3831+0x1>
      360:	26 fd       	sbrc	r18, 6
      362:	0a c0       	rjmp	.+20     	; 0x378 <updateButtons+0xb0>
+		if(b3Count < 60000) {
      364:	80 36       	cpi	r24, 0x60	; 96
      366:	2a ee       	ldi	r18, 0xEA	; 234
      368:	92 07       	cpc	r25, r18
      36a:	b8 f4       	brcc	.+46     	; 0x39a <updateButtons+0xd2>
+			b3Count++;
      36c:	01 96       	adiw	r24, 0x01	; 1
      36e:	80 93 a2 20 	sts	0x20A2, r24	; 0x8020a2 <b3Count.3831>
      372:	90 93 a3 20 	sts	0x20A3, r25	; 0x8020a3 <b3Count.3831+0x1>
      376:	11 c0       	rjmp	.+34     	; 0x39a <updateButtons+0xd2>
+		}
+	} else {
+		if(b3Count > (BUTTON_PRESS_SHORT / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      378:	8b 30       	cpi	r24, 0x0B	; 11
      37a:	91 05       	cpc	r25, r1
      37c:	38 f0       	brcs	.+14     	; 0x38c <updateButtons+0xc4>
+			if(b3Count > (BUTTON_PRESS_LONG / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      37e:	c3 97       	sbiw	r24, 0x33	; 51
      380:	18 f0       	brcs	.+6      	; 0x388 <updateButtons+0xc0>
+				//Button was pressed Long
+				b3Status = LONG_PRESSED;
      382:	10 92 f2 34 	sts	0x34F2, r1	; 0x8034f2 <b3Status>
      386:	05 c0       	rjmp	.+10     	; 0x392 <updateButtons+0xca>
+				} else {
+				//Button was pressed Short
+				b3Status = SHORT_PRESSED;
      388:	81 e0       	ldi	r24, 0x01	; 1
      38a:	01 c0       	rjmp	.+2      	; 0x38e <updateButtons+0xc6>
+			}
+		} else {
+			b3Status = NOT_PRESSED;
      38c:	82 e0       	ldi	r24, 0x02	; 2
      38e:	80 93 f2 34 	sts	0x34F2, r24	; 0x8034f2 <b3Status>
+		}
+		b3Count = 0;
      392:	10 92 a2 20 	sts	0x20A2, r1	; 0x8020a2 <b3Count.3831>
      396:	10 92 a3 20 	sts	0x20A3, r1	; 0x8020a3 <b3Count.3831+0x1>
+	}
+	if(Button4_Value == 0) {
      39a:	20 91 a8 06 	lds	r18, 0x06A8	; 0x8006a8 <__TEXT_REGION_LENGTH__+0x7006a8>
      39e:	80 91 a0 20 	lds	r24, 0x20A0	; 0x8020a0 <__data_end>
      3a2:	90 91 a1 20 	lds	r25, 0x20A1	; 0x8020a1 <__data_end+0x1>
      3a6:	27 fd       	sbrc	r18, 7
      3a8:	0a c0       	rjmp	.+20     	; 0x3be <updateButtons+0xf6>
+		if(b4Count < 60000) {
      3aa:	80 36       	cpi	r24, 0x60	; 96
      3ac:	2a ee       	ldi	r18, 0xEA	; 234
      3ae:	92 07       	cpc	r25, r18
      3b0:	b8 f4       	brcc	.+46     	; 0x3e0 <updateButtons+0x118>
+			b4Count++;
      3b2:	01 96       	adiw	r24, 0x01	; 1
      3b4:	80 93 a0 20 	sts	0x20A0, r24	; 0x8020a0 <__data_end>
      3b8:	90 93 a1 20 	sts	0x20A1, r25	; 0x8020a1 <__data_end+0x1>
      3bc:	08 95       	ret
+		}
+	} else {
+		if(b4Count > (BUTTON_PRESS_SHORT / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      3be:	8b 30       	cpi	r24, 0x0B	; 11
      3c0:	91 05       	cpc	r25, r1
      3c2:	38 f0       	brcs	.+14     	; 0x3d2 <updateButtons+0x10a>
+			if(b4Count > (BUTTON_PRESS_LONG / (1000/BUTTON_UPDATE_FREQUENCY_HZ))) {
      3c4:	c3 97       	sbiw	r24, 0x33	; 51
      3c6:	18 f0       	brcs	.+6      	; 0x3ce <updateButtons+0x106>
+				//Button was pressed Long
+				b4Status = LONG_PRESSED;
      3c8:	10 92 f3 34 	sts	0x34F3, r1	; 0x8034f3 <b4Status>
      3cc:	05 c0       	rjmp	.+10     	; 0x3d8 <updateButtons+0x110>
+				} else {
+				//Button was pressed Short
+				b4Status = SHORT_PRESSED;
      3ce:	81 e0       	ldi	r24, 0x01	; 1
      3d0:	01 c0       	rjmp	.+2      	; 0x3d4 <updateButtons+0x10c>
+			}
+		} else {
+			b4Status = NOT_PRESSED;
      3d2:	82 e0       	ldi	r24, 0x02	; 2
      3d4:	80 93 f3 34 	sts	0x34F3, r24	; 0x8034f3 <b4Status>
+		}
+		b4Count = 0;
      3d8:	10 92 a0 20 	sts	0x20A0, r1	; 0x8020a0 <__data_end>
      3dc:	10 92 a1 20 	sts	0x20A1, r1	; 0x8020a1 <__data_end+0x1>
      3e0:	08 95       	ret
 
 000003e2 <getButtonPress>:
+	}
+ }
+
+ button_press_t getButtonPress(button_t button) {
+	switch(button) {
      3e2:	81 30       	cpi	r24, 0x01	; 1
      3e4:	59 f0       	breq	.+22     	; 0x3fc <getButtonPress+0x1a>
      3e6:	38 f0       	brcs	.+14     	; 0x3f6 <getButtonPress+0x14>
@@ -374,34 +470,83 @@ Disassembly of section .text:
      3ea:	59 f0       	breq	.+22     	; 0x402 <__LOCK_REGION_LENGTH__+0x2>
      3ec:	83 30       	cpi	r24, 0x03	; 3
      3ee:	61 f4       	brne	.+24     	; 0x408 <__LOCK_REGION_LENGTH__+0x8>
+		break;
+		case BUTTON3:
+			return b3Status;
+		break;
+		case BUTTON4:
+			return b4Status;
      3f0:	80 91 f3 34 	lds	r24, 0x34F3	; 0x8034f3 <b4Status>
      3f4:	08 95       	ret
+ }
+
+ button_press_t getButtonPress(button_t button) {
+	switch(button) {
+		case BUTTON1:
+			return b1Status;
      3f6:	80 91 f0 34 	lds	r24, 0x34F0	; 0x8034f0 <b1Status>
      3fa:	08 95       	ret
+		break;
+		case BUTTON2:
+			return b2Status;
      3fc:	80 91 f1 34 	lds	r24, 0x34F1	; 0x8034f1 <b2Status>
      400:	08 95       	ret
+		break;
+		case BUTTON3:
+			return b3Status;
      402:	80 91 f2 34 	lds	r24, 0x34F2	; 0x8034f2 <b3Status>
      406:	08 95       	ret
+		break;
+		case BUTTON4:
+			return b4Status;
+		break;
+	}
+	return NOT_PRESSED;
      408:	82 e0       	ldi	r24, 0x02	; 2
      40a:	08 95       	ret
 
 0000040c <CCPWrite>:
+ *
+ *  \param address A pointer to the address to write to.
+ *  \param value   The value to put in to the register.
+ */
+void CCPWrite( volatile uint8_t * address, uint8_t value )
+{
      40c:	0f 93       	push	r16
      40e:	cf 93       	push	r28
      410:	df 93       	push	r29
      412:	1f 92       	push	r1
      414:	cd b7       	in	r28, 0x3d	; 61
      416:	de b7       	in	r29, 0x3e	; 62
+
+	// Restore global interrupt setting from scratch register.
+        asm("out  0x3F, R1");
+
+#elif defined __GNUC__
+	AVR_ENTER_CRITICAL_REGION( );
      418:	2f b7       	in	r18, 0x3f	; 63
      41a:	29 83       	std	Y+1, r18	; 0x01
      41c:	f8 94       	cli
+	volatile uint8_t * tmpAddr = address;
+#ifdef RAMPZ
+	RAMPZ = 0;
      41e:	1b be       	out	0x3b, r1	; 59
+#endif
+	asm volatile(
      420:	fc 01       	movw	r30, r24
      422:	08 ed       	ldi	r16, 0xD8	; 216
      424:	04 bf       	out	0x34, r16	; 52
      426:	60 83       	st	Z, r22
+		:
+		: "r" (tmpAddr), "r" (value), "M" (CCP_IOREG_gc), "i" (&CCP)
+		: "r16", "r30", "r31"
+		);
+
+	AVR_LEAVE_CRITICAL_REGION( );
      428:	89 81       	ldd	r24, Y+1	; 0x01
      42a:	8f bf       	out	0x3f, r24	; 63
+#endif
+}
      42c:	0f 90       	pop	r0
      42e:	df 91       	pop	r29
      430:	cf 91       	pop	r28
@@ -409,6 +554,12 @@ Disassembly of section .text:
      434:	08 95       	ret
 
 00000436 <CLKSYS_XOSC_Config>:
+ */
+void CLKSYS_XOSC_Config( OSC_FRQRANGE_t freqRange,
+                         bool lowPower32kHz,
+                         OSC_XOSCSEL_t xoscModeSelection )
+{
+	OSC.XOSCCTRL = (uint8_t) freqRange |
      436:	61 11       	cpse	r22, r1
      438:	02 c0       	rjmp	.+4      	; 0x43e <CLKSYS_XOSC_Config+0x8>
      43a:	90 e0       	ldi	r25, 0x00	; 0
@@ -420,12 +571,24 @@ Disassembly of section .text:
      448:	08 95       	ret
 
 0000044a <CLKSYS_PLL_Config>:
+ *                      from 1 to 31, inclusive.
+ */
+void CLKSYS_PLL_Config( OSC_PLLSRC_t clockSource, uint8_t factor )
+{
+	factor &= OSC_PLLFAC_gm;
+	OSC.PLLCTRL = (uint8_t) clockSource | ( factor << OSC_PLLFAC_gp );
      44a:	6f 71       	andi	r22, 0x1F	; 31
      44c:	86 2b       	or	r24, r22
      44e:	80 93 55 00 	sts	0x0055, r24	; 0x800055 <__TEXT_REGION_LENGTH__+0x700055>
      452:	08 95       	ret
 
 00000454 <CLKSYS_Disable>:
+ *
+ *  \return  Non-zero if oscillator was disabled successfully.
+ */
+uint8_t CLKSYS_Disable( uint8_t oscSel )
+{
+	OSC.CTRL &= ~oscSel;
      454:	e0 e5       	ldi	r30, 0x50	; 80
      456:	f0 e0       	ldi	r31, 0x00	; 0
      458:	90 81       	ld	r25, Z
@@ -433,32 +596,52 @@ Disassembly of section .text:
      45c:	20 95       	com	r18
      45e:	92 23       	and	r25, r18
      460:	90 83       	st	Z, r25
+	uint8_t clkEnabled = OSC.CTRL & oscSel;
      462:	90 81       	ld	r25, Z
+	return clkEnabled;
+}
      464:	89 23       	and	r24, r25
      466:	08 95       	ret
 
 00000468 <CLKSYS_Prescalers_Config>:
+ */
+void CLKSYS_Prescalers_Config( CLK_PSADIV_t PSAfactor,
+                               CLK_PSBCDIV_t PSBCfactor )
+{
+	uint8_t PSconfig = (uint8_t) PSAfactor | PSBCfactor;
+	CCPWrite( &CLK.PSCTRL, PSconfig );
      468:	68 2b       	or	r22, r24
      46a:	81 e4       	ldi	r24, 0x41	; 65
      46c:	90 e0       	ldi	r25, 0x00	; 0
      46e:	0c 94 06 02 	jmp	0x40c	; 0x40c <CCPWrite>
 
 00000472 <CLKSYS_Main_ClockSource_Select>:
+ *                       prescaler block.
+ *
+ *  \return  Non-zero if change was successful.
+ */
+uint8_t CLKSYS_Main_ClockSource_Select( CLK_SCLKSEL_t clockSource )
+{
      472:	0f 93       	push	r16
      474:	1f 93       	push	r17
      476:	cf 93       	push	r28
      478:	c8 2f       	mov	r28, r24
+	uint8_t clkCtrl = ( CLK.CTRL & ~CLK_SCLKSEL_gm ) | clockSource;
      47a:	00 e4       	ldi	r16, 0x40	; 64
      47c:	10 e0       	ldi	r17, 0x00	; 0
      47e:	f8 01       	movw	r30, r16
      480:	60 81       	ld	r22, Z
+	CCPWrite( &CLK.CTRL, clkCtrl );
      482:	68 7f       	andi	r22, 0xF8	; 248
      484:	68 2b       	or	r22, r24
      486:	80 e4       	ldi	r24, 0x40	; 64
      488:	90 e0       	ldi	r25, 0x00	; 0
      48a:	0e 94 06 02 	call	0x40c	; 0x40c <CCPWrite>
+	clkCtrl = ( CLK.CTRL & clockSource );
      48e:	f8 01       	movw	r30, r16
      490:	80 81       	ld	r24, Z
+	return clkCtrl;
+}
      492:	8c 23       	and	r24, r28
      494:	cf 91       	pop	r28
      496:	1f 91       	pop	r17
@@ -466,6 +649,12 @@ Disassembly of section .text:
      49a:	08 95       	ret
 
 0000049c <TC0_ConfigClockSource>:
+{
+	/* Make sure only CCxEN bits are set in disableMask. */
+	disableMask &= ( TC1_CCAEN_bm | TC1_CCBEN_bm );
+
+	/* Disable channels. */
+	tc->CTRLB &= ~disableMask;
      49c:	fc 01       	movw	r30, r24
      49e:	90 81       	ld	r25, Z
      4a0:	90 7f       	andi	r25, 0xF0	; 240
@@ -482,7 +671,14 @@ Disassembly of section .text:
      4b2:	08 95       	ret
 
 000004b4 <TC0_SetOverflowIntLevel>:
+ *
+ *  \param tc               Timer/Counter module instance.
+ *  \param intLevel         New overflow interrupt level.
+ */
+void TC0_SetOverflowIntLevel( volatile TC0_t * tc, TC_OVFINTLVL_t intLevel )
+{
      4b4:	fc 01       	movw	r30, r24
+	tc->INTCTRLA = ( tc->INTCTRLA & ~TC0_OVFINTLVL_gm ) | intLevel;
      4b6:	96 81       	ldd	r25, Z+6	; 0x06
      4b8:	9c 7f       	andi	r25, 0xFC	; 252
      4ba:	69 2b       	or	r22, r25
@@ -899,12 +1095,27 @@ Disassembly of section .text:
      7c6:	08 95       	ret
 
 000007c8 <pvPortMalloc>:
+
+static size_t xNextFreeByte = ( size_t ) 0;
+/*-----------------------------------------------------------*/
+
+void *pvPortMalloc( size_t xWantedSize )
+{
      7c8:	0f 93       	push	r16
      7ca:	1f 93       	push	r17
      7cc:	cf 93       	push	r28
      7ce:	df 93       	push	r29
      7d0:	8c 01       	movw	r16, r24
+			/* Byte alignment required. */
+			xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
+		}
+	#endif
+
+	vTaskSuspendAll();
      7d2:	0e 94 86 0b 	call	0x170c	; 0x170c <vTaskSuspendAll>
+	{
+		/* Check there is enough room left for the allocation. */
+		if( ( ( xNextFreeByte + xWantedSize ) < configTOTAL_HEAP_SIZE ) &&
      7d6:	c0 91 a8 20 	lds	r28, 0x20A8	; 0x8020a8 <xNextFreeByte>
      7da:	d0 91 a9 20 	lds	r29, 0x20A9	; 0x8020a9 <xNextFreeByte+0x1>
      7de:	ce 01       	movw	r24, r28
@@ -917,14 +1128,38 @@ Disassembly of section .text:
      7ec:	c8 17       	cp	r28, r24
      7ee:	d9 07       	cpc	r29, r25
      7f0:	38 f4       	brcc	.+14     	; 0x800 <pvPortMalloc+0x38>
+			( ( xNextFreeByte + xWantedSize ) > xNextFreeByte )	)/* Check for overflow. */
+		{
+			/* Return the next free byte then increment the index past this
+			block. */
+			pvReturn = &( xHeap.ucHeap[ xNextFreeByte ] );
      7f2:	c6 55       	subi	r28, 0x56	; 86
      7f4:	df 4d       	sbci	r29, 0xDF	; 223
+			xNextFreeByte += xWantedSize;			
      7f6:	80 93 a8 20 	sts	0x20A8, r24	; 0x8020a8 <xNextFreeByte>
      7fa:	90 93 a9 20 	sts	0x20A9, r25	; 0x8020a9 <xNextFreeByte+0x1>
      7fe:	02 c0       	rjmp	.+4      	; 0x804 <pvPortMalloc+0x3c>
+static size_t xNextFreeByte = ( size_t ) 0;
+/*-----------------------------------------------------------*/
+
+void *pvPortMalloc( size_t xWantedSize )
+{
+void *pvReturn = NULL; 
      800:	c0 e0       	ldi	r28, 0x00	; 0
      802:	d0 e0       	ldi	r29, 0x00	; 0
+			block. */
+			pvReturn = &( xHeap.ucHeap[ xNextFreeByte ] );
+			xNextFreeByte += xWantedSize;			
+		}	
+	}
+	xTaskResumeAll();
      804:	0e 94 69 0c 	call	0x18d2	; 0x18d2 <xTaskResumeAll>
+		}
+	}
+	#endif	
+
+	return pvReturn;
+}
      808:	ce 01       	movw	r24, r28
      80a:	df 91       	pop	r29
      80c:	cf 91       	pop	r28
@@ -933,6 +1168,10 @@ Disassembly of section .text:
      812:	08 95       	ret
 
 00000814 <vPortFree>:
+/*-----------------------------------------------------------*/
+
+void vPortFree( void *pv )
+{
      814:	08 95       	ret
 
 00000816 <vListInitialise>:
@@ -4426,43 +4665,62 @@ TickType_t uxReturn;
     2416:	08 95       	ret
 
 00002418 <vInitClock>:
+#include "clksys_driver.h"
+
+
+void vInitClock(void)
+{
+	CLKSYS_Enable( OSC_RC2MEN_bm );
     2418:	80 91 50 00 	lds	r24, 0x0050	; 0x800050 <__TEXT_REGION_LENGTH__+0x700050>
     241c:	81 60       	ori	r24, 0x01	; 1
     241e:	80 93 50 00 	sts	0x0050, r24	; 0x800050 <__TEXT_REGION_LENGTH__+0x700050>
+	do {} while ( CLKSYS_IsReady( OSC_RC2MRDY_bm ) == 0 );
     2422:	80 91 51 00 	lds	r24, 0x0051	; 0x800051 <__TEXT_REGION_LENGTH__+0x700051>
     2426:	80 ff       	sbrs	r24, 0
     2428:	fc cf       	rjmp	.-8      	; 0x2422 <vInitClock+0xa>
+	CLKSYS_Main_ClockSource_Select( CLK_SCLKSEL_RC2M_gc );
     242a:	80 e0       	ldi	r24, 0x00	; 0
     242c:	0e 94 39 02 	call	0x472	; 0x472 <CLKSYS_Main_ClockSource_Select>
+	CLKSYS_Disable( OSC_RC32MEN_bm | OSC_RC32KEN_bm | OSC_XOSCEN_bm | OSC_PLLEN_bm);
     2430:	8e e1       	ldi	r24, 0x1E	; 30
     2432:	0e 94 2a 02 	call	0x454	; 0x454 <CLKSYS_Disable>
+	CLKSYS_Prescalers_Config( CLK_PSADIV_1_gc, CLK_PSBCDIV_1_1_gc );
     2436:	60 e0       	ldi	r22, 0x00	; 0
     2438:	80 e0       	ldi	r24, 0x00	; 0
     243a:	0e 94 34 02 	call	0x468	; 0x468 <CLKSYS_Prescalers_Config>
+	CLKSYS_XOSC_Config( OSC_FRQRANGE_2TO9_gc,false,OSC_XOSCSEL_XTAL_256CLK_gc );
     243e:	43 e0       	ldi	r20, 0x03	; 3
     2440:	60 e0       	ldi	r22, 0x00	; 0
     2442:	80 e4       	ldi	r24, 0x40	; 64
     2444:	0e 94 1b 02 	call	0x436	; 0x436 <CLKSYS_XOSC_Config>
+	CLKSYS_Enable( OSC_XOSCEN_bm );
     2448:	80 91 50 00 	lds	r24, 0x0050	; 0x800050 <__TEXT_REGION_LENGTH__+0x700050>
     244c:	88 60       	ori	r24, 0x08	; 8
     244e:	80 93 50 00 	sts	0x0050, r24	; 0x800050 <__TEXT_REGION_LENGTH__+0x700050>
+	do {} while ( CLKSYS_IsReady( OSC_XOSCRDY_bm ) == 0 );
     2452:	80 91 51 00 	lds	r24, 0x0051	; 0x800051 <__TEXT_REGION_LENGTH__+0x700051>
     2456:	83 ff       	sbrs	r24, 3
     2458:	fc cf       	rjmp	.-8      	; 0x2452 <vInitClock+0x3a>
+	CLKSYS_PLL_Config( OSC_PLLSRC_XOSC_gc, 4 );
     245a:	64 e0       	ldi	r22, 0x04	; 4
     245c:	80 ec       	ldi	r24, 0xC0	; 192
     245e:	0e 94 25 02 	call	0x44a	; 0x44a <CLKSYS_PLL_Config>
+	CLKSYS_Enable( OSC_PLLEN_bm );
     2462:	80 91 50 00 	lds	r24, 0x0050	; 0x800050 <__TEXT_REGION_LENGTH__+0x700050>
     2466:	80 61       	ori	r24, 0x10	; 16
     2468:	80 93 50 00 	sts	0x0050, r24	; 0x800050 <__TEXT_REGION_LENGTH__+0x700050>
+	CLKSYS_Prescalers_Config( CLK_PSADIV_1_gc, CLK_PSBCDIV_1_1_gc );
     246c:	60 e0       	ldi	r22, 0x00	; 0
     246e:	80 e0       	ldi	r24, 0x00	; 0
     2470:	0e 94 34 02 	call	0x468	; 0x468 <CLKSYS_Prescalers_Config>
+	do {} while ( CLKSYS_IsReady( OSC_PLLRDY_bm ) == 0 );
     2474:	80 91 51 00 	lds	r24, 0x0051	; 0x800051 <__TEXT_REGION_LENGTH__+0x700051>
     2478:	84 ff       	sbrs	r24, 4
     247a:	fc cf       	rjmp	.-8      	; 0x2474 <vInitClock+0x5c>
+	CLKSYS_Main_ClockSource_Select( CLK_SCLKSEL_PLL_gc );
     247c:	84 e0       	ldi	r24, 0x04	; 4
     247e:	0e 94 39 02 	call	0x472	; 0x472 <CLKSYS_Main_ClockSource_Select>
+	CLKSYS_Disable( OSC_RC32MEN_bm | OSC_RC2MEN_bm | OSC_RC32KEN_bm);
     2482:	87 e0       	ldi	r24, 0x07	; 7
     2484:	0c 94 2a 02 	jmp	0x454	; 0x454 <CLKSYS_Disable>
 
@@ -7055,34 +7313,76 @@ void vDisplayWriteStringAtPos(int line, int pos, char const *fmt, ...) {
     33ee:	08 95       	ret
 
 000033f0 <getResetReason>:
+ #include "utils.h"
+
+ resetReason_t getResetReason(void) {
+	 resetReason_t returnValue = RESETREASON_POWERONRESET;
+	 // software reset ?
+	 if( RST.STATUS & RST_SRF_bm )
     33f0:	80 91 78 00 	lds	r24, 0x0078	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
     33f4:	85 ff       	sbrs	r24, 5
     33f6:	05 c0       	rjmp	.+10     	; 0x3402 <getResetReason+0x12>
+	 {
+		 // reset this bit
+		 RST.STATUS = RST_SRF_bm;
     33f8:	80 e2       	ldi	r24, 0x20	; 32
     33fa:	80 93 78 00 	sts	0x0078, r24	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
+		 returnValue = RESETREASON_SOFTWARERESET;
     33fe:	81 e0       	ldi	r24, 0x01	; 1
     3400:	08 95       	ret
+	 }
+	 // power on reset ?
+	 else if( RST.STATUS & RST_PORF_bm)
     3402:	80 91 78 00 	lds	r24, 0x0078	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
     3406:	80 ff       	sbrs	r24, 0
     3408:	04 c0       	rjmp	.+8      	; 0x3412 <getResetReason+0x22>
+	 {
+		 // reset this bit
+		 RST.STATUS = RST_PORF_bm;
     340a:	81 e0       	ldi	r24, 0x01	; 1
     340c:	80 93 78 00 	sts	0x0078, r24	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
     3410:	12 c0       	rjmp	.+36     	; 0x3436 <getResetReason+0x46>
+		 returnValue = RESETREASON_POWERONRESET;
+	 }
+	 // debugger reset ?
+	 else if( RST.STATUS & RST_PDIRF_bm)
     3412:	80 91 78 00 	lds	r24, 0x0078	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
     3416:	84 ff       	sbrs	r24, 4
     3418:	05 c0       	rjmp	.+10     	; 0x3424 <getResetReason+0x34>
+	 {
+		 // reset this bit
+		 RST.STATUS = RST_PDIRF_bm;
     341a:	80 e1       	ldi	r24, 0x10	; 16
     341c:	80 93 78 00 	sts	0x0078, r24	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
+		 returnValue = RESETREASON_DEBUGGERRESET;
     3420:	83 e0       	ldi	r24, 0x03	; 3
     3422:	08 95       	ret
+	 }
+	 // external reset ?
+	 else if( RST.STATUS & RST_EXTRF_bm)
     3424:	80 91 78 00 	lds	r24, 0x0078	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
     3428:	81 ff       	sbrs	r24, 1
     342a:	05 c0       	rjmp	.+10     	; 0x3436 <getResetReason+0x46>
+	 {
+		 // reset this bit
+		 RST.STATUS = RST_EXTRF_bm;
     342c:	82 e0       	ldi	r24, 0x02	; 2
     342e:	80 93 78 00 	sts	0x0078, r24	; 0x800078 <__TEXT_REGION_LENGTH__+0x700078>
+		 returnValue = RESETREASON_EXTERNALRESET;
     3432:	84 e0       	ldi	r24, 0x04	; 4
     3434:	08 95       	ret
+ */ 
+ #include "avr_compiler.h"
+ #include "utils.h"
+
+ resetReason_t getResetReason(void) {
+	 resetReason_t returnValue = RESETREASON_POWERONRESET;
     3436:	82 e0       	ldi	r24, 0x02	; 2
+		 // reset this bit
+		 RST.STATUS = RST_EXTRF_bm;
+		 returnValue = RESETREASON_EXTERNALRESET;
+	 }
+	 return returnValue;
     3438:	08 95       	ret
 
 0000343a <__subsf3>:
